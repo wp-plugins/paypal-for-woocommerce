@@ -4,31 +4,31 @@ Donate link: http://www.angelleye.com/product/buy-beer/
 Tags: woocommerce, paypal, express checkout, payments pro, angelleye, payflow, dodirectpayment
 Requires at least: 3.8
 Tested up to: 3.8.1
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
-Easily integrate PayPal Express Checkout and Payments Pro into the WooCommerce shopping cart.
+The official PayPal extension for WooCommerce, developed by a PayPal partner.
 
 == Description ==
 
 Easily add PayPal payment options to your WordPress / WooCommerce website.
 
- * PayPal Express Checkout
+ * PayPal Express Checkout / Bill Me Later
  * PayPal Website Payments Pro 3.0 (DoDirectPayment)
- * PayPal Payments Pro 2.0 (PayFlow)
+ * PayPal Payments Pro 2.0 (PayPal Manager / PayFlow Gateway)
  
 We are PayPal specialists who have been integrating PayPal into a wide variety of shopping cart systems over the years.  We've run into all the common problems associated with PayPal integration, and we know how to eliminate them.  We've also learned some tricks of the trade to make working with shopping carts and PayPal as seamless as possible.
 
-This plugin brings that experience to WooCommerce so that you can rest assured your payments will be processed correctly…and, it's free!
+This plugin brings that experience to WooCommerce so that you can rest assured your payments will be processed correctly.  Also, it is and will always be free!
 
 = Quality Control =
-Payment processing can't go wrong.  It's as simple as that.  Our certified PayPal engineers have developed and thoroughly tested this plugin on the PayPal sandbox (test) servers.  
+Payment processing can't go wrong.  It's as simple as that.  Our certified PayPal engineers have developed and thoroughly tested this plugin on the PayPal sandbox (test) servers to ensure your customers don't have problems paying you.  
 
 = Seamless PayPal Integration =
 Stop bouncing back and forth between WooCommerce and PayPal to manage and reconcile orders.  We've made sure to include all WooCommerce order data in PayPal transactions so that everything matches in both places.  If you're looking at a PayPal transaction details page it will have all of the same data as a WooCommerce order page, and vice-versa.  
 
-= Error Handling (Correctly) =
+= Error Handling =
 PayPal's system can be tricky when it comes to handling errors.  Most PayPal plugins do not correctly process the PayPal response which can result in big problems.  For example:
 
 * Fraud Filters could throw a "warning" instead of a full "success" response even when the payment was completed successfully.  
@@ -49,36 +49,63 @@ Developers can contribute to the source code on the [PayPal for WooCommerce GitH
 
 Automatic installation is the easiest option as WordPress handles the file transfers itself and you don't need to leave your web browser. To do an automatic install of PayPal for WooCommerce, log in to your WordPress dashboard, navigate to the Plugins menu and click Add New.
 
-In the search field type PayPal for WooCommerce and click Search Plugins. Once you've found our plugin you can view details about it such as the the point release, rating and description. Most importantly of course, you can install it by simply clicking Install Now.
-
-Once the extension has been installed and activated you will find the PayPal Express Checkout and Pro settings available under WooCommerce -> Settings -> Checkout tab.
+In the search field type PayPal for WooCommerce and click Search Plugins. Once you've found our plugin you can view details about it such as the the rating and description. Most importantly, of course, you can install it by simply clicking Install Now.
 
 = Manual Installation =
 
- 1. Unzip the files and upload the folder into your plugins folder (wp-content/plugins/) overwriting old versions if they exist
- 2. Activate the plugin in your WordPress admin area.
- 3. Open the settings page for WooCommerce and click the "Checkout" tab
- 4. Click on the sub-item for PayPal Express Checkout or Payments Pro.
- 5. Configure your settings accordingly.
+1. Unzip the files and upload the folder into your plugins folder (/wp-content/plugins/) overwriting older versions if they exist
+2. Activate the plugin in your WordPress admin area.
  
+= Usage = 
+
+1. Open the settings page for WooCommerce and click the "Checkout" tab
+2. Click on the sub-item for PayPal Express Checkout or Payments Pro.
+3. Enter your API credentials and adjust any other settings to suit your needs. 
+
 = Updating = 
 
 Automatic updates should work great for you.  As always, though, we recommend backing up your site prior to making any updates just to be sure nothing goes wrong.
  
 == Screenshots ==
 
-1. Display Pay with Credit Card and Pay with PayPal options on the shopping cart page.
-2. Your logo and cart items accurately displayed on PayPal Express Checkout review pages.
-3. Direct credit card processing option available with PayPal Payments Pro.
+1. Display Pay with Credit Card and Pay with PayPal / Bill Me Later options on the shopping cart page.
+2. PayPal Express Checkout button on product detail page.
+3. Your logo and cart items accurately displayed on PayPal Express Checkout review pages.
+4. Direct credit card processing option available with PayPal Payments Pro.
 
 == Frequently Asked Questions ==
 
+= How do I create sandbox accounts for testing? =
+
+* Login at http://developer.paypal.com.  
+* Click the Applications tab in the top menu.
+* Click Sandbox Accounts in the left sidebar menu.
+* Click the Create Account button to create a new sandbox account.
+* TIP: Create at least one "seller" account and one "buyer" account if you want to fully test Express Checkout or other PayPal wallet payments. 
+
 = Where do I get my API credentials? =
 
- * Sandbox credentials can be obtained by signing in with a sandbox account here:  https://www.sandbox.paypal.com/us/cgi-bin/webscr?cmd=_login-api-run
- * Live credentials can be obtained by signing in to your live PayPal account here:  https://www.paypal.com/us/cgi-bin/webscr?cmd=_login-api-run
+* Live credentials can be obtained by signing in to your live PayPal account here:  https://www.paypal.com/us/cgi-bin/webscr?cmd=_login-api-run
+* Sandbox credentials can be obtained by viewing the sandbox account profile within your PayPal developer account, or by signing in with a sandbox account here:  https://www.sandbox.paypal.com/us/cgi-bin/webscr?cmd=_login-api-run
 
 == Changelog ==
+
+= 1.0.6 - 03/23/2014 =
+* Fix - If WooCommerce Guest Checkout is disabled, Express Checkout now requires login or account creation.
+* Localization - Ready for translation.
+* Feature - Adds the option to include a Bill Me Later button on cart and checkout pages.
+* Feature - Adds option to display detailed or generic errors to users when payments fail.
+* Feature - Adds ability to set a custom image in place of the default PayPal Express Checkout button.
+* Feature - Adds option to include Express Checkout button on product pages.
+* Tweak - Adds admin notice when both PayPal Standard and Express Checkout are enabled.
+* Tweak - Adds the option to enable/disable logging in Payments Pro (PayFlow)
+* Tweak - Adds links to obtain API credentials from settings page for easy access.
+* Tweak - Improves CSS styles on Express Checkout and Bill Me Later buttons.
+* Tweak - Improves CSS styles on Payments Pro checkout forms.
+* Tweak - Updates PayPal API version in Angell EYE PayPal PHP Library
+* Tweak - Updates guest checkout options in Express Checkout to work with new API parameters.
+* Refactor - Strips unnecessary code from original WooThemes extension.
+* Refactor - Strips unnecessary additional calls to GetExpressCheckoutDetails to reduce server loads.
 
 = 1.0.5 - 03/17/2014 =
 * Refactor - Minor code adjustments and cleanup.
