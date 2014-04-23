@@ -127,8 +127,8 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
                     'detailed' => 'Detailed',
                     'generic' => 'Generic'
                 ),
-				'description' => 'Detailed displays actual errors returned from PayPal.  Generic displays general errors that do not reveal details 
-									and helps to prevent fraudulant activity on your site.'
+				'description' => __( 'Detailed displays actual errors returned from PayPal.  Generic displays general errors that do not reveal details 
+									and helps to prevent fraudulant activity on your site.' , 'paypal-for-woocommerce' )
             ),
             'sandbox_paypal_vendor'   => array(
                 'title'       => __( 'Sandbox PayPal Vendor', 'paypal-for-woocommerce' ),
@@ -454,9 +454,23 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 				{
                     $PayPalRequestData['FREIGHTAMT'] = $shipping;
                 }
-
-                $PayPalRequestData['ITEMAMT'] = number_format($ITEMAMT,2,'.','');
             }
+			
+			/**
+			 * Add custom Woo cart fees as line items
+			 */
+			foreach ( WC()->cart->get_fees() as $fee )
+			{
+				$PayPalRequestData['L_NUMBER' . $item_loop ]	= $fee->id;
+				$PayPalRequestData['L_NAME' . $item_loop ]		= $fee->name;
+				$PayPalRequestData['L_AMT' . $item_loop ]		= number_format($fee->amount,2,'.','');
+				$PayPalRequestData['L_QTY' . $item_loop ]		= 1;
+				$item_loop++;
+				
+				$ITEMAMT += $fee->amount*$Item['qty'];
+			}
+			
+			$PayPalRequestData['ITEMAMT'] = number_format($ITEMAMT,2,'.','');
 			
 			/**
 			 * Woo's original extension wasn't sending the request with 
@@ -517,6 +531,7 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
                 }
 
                 // Payment complete
+                //$order->add_order_note("PayPal Result".print_r($PayPalResult,true));
                 $order->payment_complete();
 
                 // Remove cart
