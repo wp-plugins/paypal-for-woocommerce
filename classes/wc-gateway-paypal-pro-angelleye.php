@@ -12,10 +12,11 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
      * @return void
      */
     function __construct() {
+        $pp_pro = get_option('woocommerce_paypal_pro_settings');
         $this->id					= 'paypal_pro';
         $this->method_title 		= __( 'PayPal Website Payments Pro (DoDirectPayment) ', 'paypal-for-woocommerce' );
         $this->method_description 	= __( 'PayPal Website Payments Pro allows you to accept credit cards directly on your site without any redirection through PayPal.  You host the checkout form on your own web server, so you will need an SSL certificate to ensure your customer data is protected.', 'paypal-for-woocommerce' );
-        $this->icon 				= WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/cards.png';
+        $this->icon 				= (!empty($pp_pro['cart_icon'])) ? $pp_pro['cart_icon'] : WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/cards.png';
         $this->has_fields 			= true;
         $this->liveurl				= 'https://api-3t.paypal.com/nvp';
         $this->testurl				= 'https://api-3t.sandbox.paypal.com/nvp';
@@ -68,6 +69,7 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
         $this->api_password 		= $this->settings['api_password'];
         $this->api_signature 		= $this->settings['api_signature'];
         $this->testmode 			= $this->settings['testmode'];
+		$this->error_email_notify   = isset($this->settings['error_email_notify']) && $this->settings['error_email_notify'] == 'yes' ? true : false;
 		$this->error_display_type 	= isset($this->settings['error_display_type']) ? $this->settings['error_display_type'] : '';
         $this->enable_3dsecure 		= isset( $this->settings['enable_3dsecure'] ) && $this->settings['enable_3dsecure'] == 'yes' ? true : false;
         $this->liability_shift 		= isset( $this->settings['liability_shift'] ) && $this->settings['liability_shift'] == 'yes' ? true : false;
@@ -132,6 +134,18 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
                 'type' => 'checkbox',
                 'description' => __( 'Place the payment gateway in development mode.', 'paypal-for-woocommerce' ),
                 'default' => 'no'
+            ),
+            'cart_icon' => array(
+                'title' => __( 'Cart Icon', 'paypal-for-woocommerce' ),
+                'type' => 'text',
+                'default' => WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/cards.png'
+            ),
+			'error_email_notify' => array(
+                'title' => __( 'Error Email Notifications', 'paypal-for-woocommerce' ),
+                'type' => 'checkbox',
+                'label' => __( 'Enable admin email notifications for errors.', 'paypal-for-woocommerce' ),
+                'default' => 'yes', 
+				'description' => __( 'This will send a detailed error email to the WordPress site administrator if a PayPal API error occurs.','paypal-for-woocommerce' )
             ),
             'sandbox_api_username' => array(
                 'title' => __( 'Sandbox API Username', 'paypal-for-woocommerce' ),
@@ -228,6 +242,58 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
             )
         );
     }
+    /*
+     * Admin Options
+     */
+    public function admin_options() { ?>
+
+        <h3><?php echo isset( $this->method_title ) ? $this->method_title : __( 'Settings', 'paypal-for-woocommerce' ) ; ?></h3>
+
+        <?php echo isset( $this->method_description ) ? wpautop( $this->method_description ) : ''; ?>
+        <table class="form-table">
+            <?php $this->generate_settings_html(); ?>
+        </table>
+        <?php
+        $this->scriptAdminOption();
+    }
+    /*
+     * Script admin options
+     */
+    function scriptAdminOption(){
+        ?>
+        <script type="text/javascript">
+            jQuery(document).ready(function ($){
+                jQuery("#woocommerce_paypal_pro_cart_icon").css({float: "left"});
+                jQuery("#woocommerce_paypal_pro_cart_icon").after('<a href="#" id="upload" class="button">Upload</a>');
+                var custom_uploader;
+                $('#upload').click(function (e) {
+                    var BTthis = jQuery(this);
+                    e.preventDefault();
+                    //If the uploader object has already been created, reopen the dialog
+                    if (custom_uploader) {
+                        custom_uploader.open();
+                        return;
+                    }
+                    //Extend the wp.media object
+                    custom_uploader = wp.media.frames.file_frame = wp.media({
+                        title: '<?php _e('Choose Image','paypal-for-woocommerce'); ?>',
+                        button: {
+                            text: '<?php _e('Choose Image','paypal-for-woocommerce'); ?>'
+                        },
+                        multiple: false
+                    });
+                    //When a file is selected, grab the URL and set it as the text field's value
+                    custom_uploader.on('select', function () {
+                        attachment = custom_uploader.state().get('selection').first().toJSON();
+                        BTthis.prev('input').val(attachment.url);
+                    });
+                    //Open the uploader dialog
+                    custom_uploader.open();
+                });
+            });
+        </script>
+    <?
+    }
     /**
      * Check if this gateway is enabled and available in the user's country
      *
@@ -237,7 +303,7 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
         if ($this->enabled=="yes") :
             if ( $this->testmode == "no" && get_option('woocommerce_force_ssl_checkout')=='no' && !class_exists( 'WordPressHTTPS' ) ) return false;
             // Currency check
-            if ( ! in_array( get_option( 'woocommerce_currency' ), apply_filters( 'woocommerce_paypal_pro_allowed_currencies', array( 'AUD', 'CAD', 'CZK', 'DKK', 'EUR', 'HUF', 'JPY', 'NOK', 'NZD', 'PLN', 'GBP', 'SGD', 'SEK', 'CHF', 'USD' ) ) ) ) return false;
+            if ( ! in_array( get_woocommerce_currency(), apply_filters( 'woocommerce_paypal_pro_allowed_currencies', array( 'AUD', 'CAD', 'CZK', 'DKK', 'EUR', 'HUF', 'JPY', 'NOK', 'NZD', 'PLN', 'GBP', 'SGD', 'SEK', 'CHF', 'USD' ) ) ) ) return false;
             // Required fields check
             if (!$this->api_username || !$this->api_password || !$this->api_signature) return false;
             return isset($this->avaiable_card_types[WC()->countries->get_base_country()]);
@@ -395,7 +461,7 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
             // Standard cmpi_lookup fields
             $centinelClient->add('OrderNumber', $order_id);
             $centinelClient->add('Amount', $order->order_total * 100 );
-            $centinelClient->add('CurrencyCode', $this->iso4217[get_option('woocommerce_currency')]);
+            $centinelClient->add('CurrencyCode', $this->iso4217[get_woocommerce_currency()]);
             $centinelClient->add('TransactionMode', 'S');
             // Items
             $item_loop = 0;
@@ -651,7 +717,7 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
 							
 		$PaymentDetails = array(
 								'amt' => $order->get_total(), 							// Required.  Total amount of order, including shipping, handling, and tax.  
-								'currencycode' => get_option('woocommerce_currency'), 					// Required.  Three-letter currency code.  Default is USD.
+								'currencycode' => get_woocommerce_currency(), 					// Required.  Three-letter currency code.  Default is USD.
 								'insuranceamt' => '', 					// Total shipping insurance costs for this order.  
 								'shipdiscamt' => '', 					// Shipping discount for the order, specified as a negative number.
 								'handlingamt' => '', 					// Total handling costs for the order.  If you specify handlingamt, you must also specify itemamt.
@@ -866,7 +932,11 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
 		
 		if($this->debug)
 		{
-            $this->log->add('paypal-pro','Result ' .print_r($PayPalResult, true ) );
+			$PayPalRequest = isset($PayPalResult['RAWREQUEST']) ? $PayPalResult['RAWREQUEST'] : '';
+			$PayPalResponse = isset($PayPalResult['RAWRESPONSE']) ? $PayPalResult['RAWRESPONSE'] : '';
+			
+			$this->log->add('paypal-pro','Request: '.print_r($PayPal->NVPToArray($PayPal->MaskAPIResult($PayPalRequest)),true));
+			$this->log->add('paypal-pro','Response: '.print_r($PayPal->NVPToArray($PayPal->MaskAPIResult($PayPalResponse)),true));
 		}
 		
 		if(empty($PayPalResult))
@@ -879,6 +949,28 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
 			// Add order note
 			$order->add_order_note(sprintf(__('PayPal Pro payment completed (Transaction ID: %s, Correlation ID: %s)', 'paypal-for-woocommerce'), $PayPalResult['TRANSACTIONID'], $PayPalResult['CORRELATIONID'] ) );
 			//$order->add_order_note("PayPal Results: ".print_r($PayPalResult,true));
+			
+			/**
+			 * Add order notes for AVS result
+			 */
+			$avs_response_code = isset($PayPalResult['AVSCODE']) ? $PayPalResult['AVSCODE'] : '';
+			$avs_response_message = $PayPal->GetAVSCodeMessage($avs_response_code);
+			$avs_response_order_note = __('Address Verification Result','paypal-for-woocommerce');
+			$avs_response_order_note .= "\n";
+			$avs_response_order_note .= $avs_response_code;
+			$avs_response_order_note .= $avs_response_message != '' ? ' - ' . $avs_response_message : '';
+			$order->add_order_note($avs_response_order_note);
+			
+			/**
+			 * Add order notes for CVV2 result
+			 */
+			$cvv2_response_code = isset($PayPalResult['CVV2MATCH']) ? $PayPalResult['CVV2MATCH'] : '';
+			$cvv2_response_message = $PayPal->GetCVV2CodeMessage($cvv2_response_code);
+			$cvv2_response_order_note = __('Card Security Code Result','paypal-for-woocommerce');
+			$cvv2_response_order_note .= "\n";
+			$cvv2_response_order_note .= $cvv2_response_code;
+			$cvv2_response_order_note .= $cvv2_response_message != '' ? ' - ' . $cvv2_response_message : '';
+			$order->add_order_note($cvv2_response_order_note);
 
 			// Payment complete
 			$order->payment_complete();
@@ -898,6 +990,17 @@ class WC_Gateway_PayPal_Pro_AngellEYE extends WC_Payment_Gateway {
 			$error_code = isset($PayPalResult['ERRORS'][0]['L_ERRORCODE']) ? $PayPalResult['ERRORS'][0]['L_ERRORCODE'] : '';
 			$long_message = isset($PayPalResult['ERRORS'][0]['L_LONGMESSAGE']) ? $PayPalResult['ERRORS'][0]['L_LONGMESSAGE'] : '';
 			$error_message = $error_code.'-'.$long_message;
+			
+			// Notice admin if has any issue from PayPal
+			if($this->error_email_notify)
+			{
+				$admin_email = get_option("admin_email");
+				$message .= __( "DoDirectPayment API call failed." , "paypal-for-woocommerce" )."\n\n";
+				$message .= __( 'Error Code: ' ,'paypal-for-woocommerce' ) . $error_code."\n";
+				$message .= __( 'Detailed Error Message: ' , 'paypal-for-woocommerce') . $long_message ."\n";
+
+				wp_mail($admin_email, "PayPal Pro Error Notification",$message);
+			}
 			
 			if($this->debug)
 			{

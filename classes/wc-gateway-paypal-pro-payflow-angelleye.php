@@ -14,21 +14,22 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
 	 * @return void
 	 */
 	function __construct() {
-
+        $pp_payflow = get_option('woocommerce_paypal_pro_payflow_settings');
 		$this->id					= 'paypal_pro_payflow';
 		$this->method_title 		= __( 'PayPal Payments Pro 2.0 (PayFlow)', 'paypal-for-woocommerce' );
 		$this->method_description 	= __( 'PayPal Payments Pro allows you to accept credit cards directly on your site without any redirection through PayPal.  You host the checkout form on your own web server, so you will need an SSL certificate to ensure your customer data is protected.', 'paypal-for-woocommerce' );
-		$this->icon 				= WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/cards.png';
+		$this->icon 				= (!empty($pp_payflow['cart_icon'])) ? $pp_payflow['cart_icon'] : WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/cards.png';
 		$this->has_fields 			= true;
 		$this->liveurl				= 'https://payflowpro.paypal.com';
 		$this->testurl				= 'https://pilot-payflowpro.paypal.com';
 		$this->allowed_currencies   = apply_filters( 'woocommerce_paypal_pro_allowed_currencies', array( 'USD', 'EUR', 'GBP', 'CAD', 'JPY', 'AUD' ) );
-		
-		// Load the form fields
-		$this->init_form_fields();
 
-		// Load the settings.
-		$this->init_settings();
+
+        // Load the form fields
+        $this->init_form_fields();
+
+        // Load the settings.
+        $this->init_settings();
 
 		// Get setting values
 		$this->title          		= $this->settings['title'];
@@ -42,6 +43,7 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
 
 		$this->testmode        		= $this->settings['testmode'];
 		$this->debug		   		= isset( $this->settings['debug'] ) && $this->settings['debug'] == 'yes' ? true : false;
+		$this->error_email_notify   = isset($this->settings['error_email_notify']) && $this->settings['error_email_notify'] == 'yes' ? true : false;
 		$this->error_display_type 	= isset($this->settings['error_display_type']) ? $this->settings['error_display_type'] : '';
 
 
@@ -78,7 +80,6 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
 		wp_enqueue_style( 'wc-paypal-pro', plugins_url( 'assets/css/checkout.css', dirname( __FILE__ ) ) );
 		wp_enqueue_script( 'card-type-detection', plugins_url( 'assets/js/card-type-detection.min.js', dirname( __FILE__ ) ), 'jquery', '1.0.0', true );
 	}
-
 	/**
      * Initialise Gateway Settings Form Fields
      */
@@ -111,12 +112,24 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
 							'description' => __( 'Place the payment gateway in development mode.', 'paypal-for-woocommerce' ),
 							'default'     => 'no'
 						),
+            'cart_icon'        => array(
+                'title'       => __( 'Cart Icon', 'paypal-for-woocommerce' ),
+                'type'        => 'text',
+                'default'     => WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/cards.png'
+            ),
 			'debug' => array(
                 'title' => __( 'Debug Log', 'woocommerce' ),
                 'type' => 'checkbox',
                 'label' => __( 'Enable logging', 'woocommerce' ),
                 'default' => 'no',
                 'description' => __( 'Log PayPal events inside <code>woocommerce/logs/paypal-payflow.txt</code>' ),
+            ),
+			'error_email_notify' => array(
+                'title' => __( 'Error Email Notifications', 'paypal-for-woocommerce' ),
+                'type' => 'checkbox',
+                'label' => __( 'Enable admin email notifications for errors.', 'paypal-for-woocommerce' ),
+                'default' => 'yes', 
+				'description' => __( 'This will send a detailed error email to the WordPress site administrator if a PayPal API error occurs.','paypal-for-woocommerce' )
             ),
 			'error_display_type' => array(
                 'title' => __( 'Error Display Type', 'paypal-for-woocommerce' ),
@@ -198,7 +211,7 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 				return false;
 
 			// Currency check
-			if ( ! in_array( get_option('woocommerce_currency'), $this->allowed_currencies ) )
+			if ( ! in_array( get_woocommerce_currency(), $this->allowed_currencies ) )
 				return false;
 
 			// Required fields check
@@ -306,7 +319,7 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 					'acct'=>$card_number, 				// Required for credit card transaction.  Credit card or purchase card number.
 					'expdate'=>$card_exp, 				// Required for credit card transaction.  Expiration date of the credit card.  Format:  MMYY
 					'amt'=>$order->get_total(), 					// Required.  Amount of the transaction.  Must have 2 decimal places. 
-					'currency'=>get_option('woocommerce_currency'), // 
+					'currency'=>get_woocommerce_currency(), // 
 					'dutyamt'=>'', 				//
 					'freightamt'=>'', 			//
 					'taxamt'=>'', 				//
@@ -529,6 +542,28 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 				{
                     $order->add_order_note(sprintf(__('PayPal Pro payment completed (PNREF: %s)','paypal-for-woocommerce'),$PayPalResult['PNREF']));
                 }
+				
+				/**
+				 * Add order notes for AVS result
+				 */
+				$avs_address_response_code = isset($PayPalResult['AVSADDR']) ? $PayPalResult['AVSADDR'] : '';
+				$avs_zip_response_code = isset($PayPalResult['AVSZIP']) ? $PayPalResult['AVSZIP'] : '';
+				
+				$avs_response_order_note = __('Address Verification Result','paypal-for-woocommerce');
+				$avs_response_order_note .= "\n";
+				$avs_response_order_note .= sprintf(__('Address Match: %s','paypal-for-woocommerce'),$avs_address_response_code);
+				$avs_response_order_note .= "\n";
+				$avs_response_order_note .= sprintf(__('Postal Match: %s','paypal-for-woocommerce'),$avs_zip_response_code);
+				$order->add_order_note($avs_response_order_note);
+				
+				/**
+				 * Add order notes for CVV2 result
+				 */
+				$cvv2_response_code = isset($PayPalResult['CVV2MATCH']) ? $PayPalResult['CVV2MATCH'] : '';
+				$cvv2_response_order_note = __('Card Security Code Result','paypal-for-woocommerce');
+				$cvv2_response_order_note .= "\n";
+				$cvv2_response_order_note .= sprintf(__('CVV2 Match: %s','paypal-for-woocommerce'),$cvv2_response_code);
+				$order->add_order_note($cvv2_response_order_note);
 
                 // Payment complete
                 //$order->add_order_note("PayPal Result".print_r($PayPalResult,true));
@@ -557,6 +592,18 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
                 	wc_add_notice( __( 'Payment error:', 'paypal-for-woocommerce' ) . ' There was a problem processing your payment.  Please try another method.', "error" );
 				}
 				
+				// Notice admin if has any issue from PayPal
+				if($this->error_email_notify)
+				{
+					$admin_email = get_option("admin_email");
+					$message .= __( "PayFlow API call failed." , "paypal-for-woocommerce" )."\n\n";
+					$message .= __( 'Error Code: ' ,'paypal-for-woocommerce' ) . $PayPalResult['RESULT'] ."\n";
+					$message .= __( 'Detailed Error Message: ' , 'paypal-for-woocommerce') . $PayPalResult['RESPMSG'];
+					$message .= isset($PayPalResult['PREFPSMSG']) && $PayPalResult['PREFPSMSG'] != '' ? ' - ' . $PayPalResult['PREFPSMSG'] ."\n" : "\n";
+	
+					wp_mail($admin_email, "PayPal Pro Error Notification",$message);
+				}
+				
                 return;
 
             }
@@ -581,6 +628,11 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 			echo '</p>';
 		}
 		?>
+        <style type="text/css">
+            #paypal_pro_payflow_card_type_image {
+                background: url(<?php echo $this->settings['cart_icon']; ?>) no-repeat 32px 0;
+            }
+        </style>
 		<fieldset class="paypal_pro_credit_card_form">
 			<p class="form-row form-row-wide validate-required paypal_pro_payflow_card_number_wrap">
 				<label for="paypal_pro_payflow_card_number"><?php _e( "Card number", "wc_paypal_pro" ) ?></label>

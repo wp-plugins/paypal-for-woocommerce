@@ -5,7 +5,9 @@
 
 global $woocommerce;
 $checked = get_option('woocommerce_enable_guest_checkout');
-$show_login = (!is_user_logged_in() && $checked==="no" && isset($_REQUEST['pp_action']));
+
+//Add hook to show login form or not
+$show_login = apply_filters('paypal-for-woocommerce-show-login', !is_user_logged_in() && $checked==="no" && isset($_REQUEST['pp_action']));
 ?>
 <style type="text/css">
     #payment{
@@ -14,7 +16,7 @@ $show_login = (!is_user_logged_in() && $checked==="no" && isset($_REQUEST['pp_ac
 </style>
 
 
-<form class="checkout" method="POST" action="<?php echo add_query_arg( 'pp_action', 'payaction', add_query_arg( 'wc-api', 'WC_Gateway_PayPal_Express_AngellEYE', home_url( '/' ) ) );?>">
+<form class="angelleye_checkout" method="POST" action="<?php echo add_query_arg( 'pp_action', 'payaction', add_query_arg( 'wc-api', 'WC_Gateway_PayPal_Express_AngellEYE', home_url( '/' ) ) );?>">
 
 <div id="paypalexpress_order_review">
         <?php woocommerce_order_review();?>
@@ -128,8 +130,8 @@ $show_login = (!is_user_logged_in() && $checked==="no" && isset($_REQUEST['pp_ac
     </form>
 <?php else:
         echo '<div class="clear"></div>';
-        echo '<p><a class="button cancel" href="' . $woocommerce->cart->get_cart_url() . '">'.__('Cancel order', 'paypal-for-woocommerce').'</a> ';
-        echo '<input type="submit" class="button" value="' . __( 'Place Order','paypal-for-woocommerce') . '" /></p>';
+        echo '<p><a class="button angelleye_cancel" href="' . $woocommerce->cart->get_cart_url() . '">'.__('Cancel order', 'paypal-for-woocommerce').'</a> ';
+        echo '<input type="submit" onclick="jQuery(this).attr(\'disabled\', \'disabled\').val(\'Processing\'); jQuery(this).parents(\'form\').submit(); return false;" class="button" value="' . __( 'Place Order','paypal-for-woocommerce') . '" /></p>';
     ?>
     </form><!--close the checkout form-->
 <?php endif; ?>
