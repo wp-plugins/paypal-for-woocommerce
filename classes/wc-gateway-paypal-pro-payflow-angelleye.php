@@ -14,11 +14,9 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
 	 * @return void
 	 */
 	function __construct() {
-        $pp_payflow = get_option('woocommerce_paypal_pro_payflow_settings');
 		$this->id					= 'paypal_pro_payflow';
 		$this->method_title 		= __( 'PayPal Payments Pro 2.0 (PayFlow)', 'paypal-for-woocommerce' );
 		$this->method_description 	= __( 'PayPal Payments Pro allows you to accept credit cards directly on your site without any redirection through PayPal.  You host the checkout form on your own web server, so you will need an SSL certificate to ensure your customer data is protected.', 'paypal-for-woocommerce' );
-		$this->icon 				= (!empty($pp_payflow['card_icon'])) ? $pp_payflow['card_icon'] : WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/payflow-cards.png';
 		$this->has_fields 			= true;
 		$this->liveurl				= 'https://payflowpro.paypal.com';
 		$this->testurl				= 'https://pilot-payflowpro.paypal.com';
@@ -46,7 +44,13 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
 		$this->debug		   		= isset( $this->settings['debug'] ) && $this->settings['debug'] == 'yes' ? true : false;
 		$this->error_email_notify   = isset($this->settings['error_email_notify']) && $this->settings['error_email_notify'] == 'yes' ? true : false;
 		$this->error_display_type 	= isset($this->settings['error_display_type']) ? $this->settings['error_display_type'] : '';
+        $this->send_items			= isset( $this->settings['send_items'] ) && $this->settings['send_items'] == 'yes' ? true : false;
+        $this->payment_action       = isset($this->settings['payment_action']) ? $this->settings['payment_action'] : 'Sale';
 
+        //fix ssl for image icon
+        $this->icon = ! empty($this->settings['card_icon']) ? $this->settings['card_icon'] : WP_PLUGIN_URL . "/" . plugin_basename( dirname( dirname( __FILE__ ) ) ) . '/assets/images/payflow-cards.png';
+        if (is_ssl())
+            $this->icon = preg_replace("/^http:/i", "https:", $this->settings['card_icon']);
 
         if ($this->testmode=="yes") {
             $this->paypal_vendor   	= $this->settings['sandbox_paypal_vendor'];
@@ -133,7 +137,7 @@ class WC_Gateway_PayPal_Pro_PayFlow_AngellEYE extends WC_Payment_Gateway {
                 'type' => 'checkbox',
                 'label' => __( 'Enable logging', 'woocommerce' ),
                 'default' => 'no',
-                'description' => __( 'Log PayPal events inside <code>/wc-logs/paypal_payflow.log</code>' ),
+                'description' => __( 'Log PayPal events inside <code>/wp-content/uploads/wc-logs/paypal_payflow-{tag}.log</code>' ),
             ),
 			'error_email_notify' => array(
                 'title' => __( 'Error Email Notifications', 'paypal-for-woocommerce' ),
@@ -206,7 +210,79 @@ of the user authorized to process transactions. Otherwise, leave this field blan
 for the Payflow SDK. If you purchased your account directly from PayPal, use PayPal or leave blank.', 'paypal-for-woocommerce' ),
 							'default'     => 'PayPal'
 						),
-			);
+            'send_items' => array(
+                'title' => __( 'Send Item Details', 'paypal-for-woocommerce' ),
+                'label' => __( 'Send line item details to PayPal', 'paypal-for-woocommerce' ),
+                'type' => 'checkbox',
+                'description' => __( 'Include all line item details in the payment request to PayPal so that they can be seen from the PayPal transaction details page.', 'paypal-for-woocommerce' ),
+                'default' => 'yes'
+            ),
+            'payment_action' => array(
+                'title' => __('Payment Action', 'paypal-for-woocommerce'),
+                'label' => __('Whether to process as a Sale or Authorization.', 'paypal-for-woocommerce'),
+                'description' => __('Sale will capture the funds immediately when the order is placed.  Authorization will authorize the payment but will not capture the funds.  You would need to capture funds through your PayPal account when you are ready to deliver.'),
+                'type' => 'select',
+                'options' => array(
+                    'Sale' => 'Sale',
+                    'Authorization' => 'Authorization',
+                ),
+                'default' => 'Sale'
+            ),
+		);
+        $this->form_fields = apply_filters( 'angelleye_fc_form_fields', $this->form_fields );
+    }
+
+    /*
+     * Admin Options
+     */
+    public function admin_options() { ?>
+
+        <h3><?php echo isset( $this->method_title ) ? $this->method_title : __( 'Settings', 'paypal-for-woocommerce' ) ; ?></h3>
+
+        <?php echo isset( $this->method_description ) ? wpautop( $this->method_description ) : ''; ?>
+        <table class="form-table">
+            <?php $this->generate_settings_html(); ?>
+        </table>
+        <?php
+        $this->scriptAdminOption();
+    }
+    /*
+     * Script admin options
+     */
+    function scriptAdminOption(){
+        ?>
+        <script type="text/javascript">
+            jQuery(document).ready(function ($){
+                jQuery("#woocommerce_paypal_pro_payflow_card_icon").css({float: "left"});
+                jQuery("#woocommerce_paypal_pro_payflow_card_icon").after('<a href="#" id="upload" class="button">Upload</a>');
+                var custom_uploader;
+                $('#upload').click(function (e) {
+                    var BTthis = jQuery(this);
+                    e.preventDefault();
+                    //If the uploader object has already been created, reopen the dialog
+                    if (custom_uploader) {
+                        custom_uploader.open();
+                        return;
+                    }
+                    //Extend the wp.media object
+                    custom_uploader = wp.media.frames.file_frame = wp.media({
+                        title: '<?php _e('Choose Image','paypal-for-woocommerce'); ?>',
+                        button: {
+                            text: '<?php _e('Choose Image','paypal-for-woocommerce'); ?>'
+                        },
+                        multiple: false
+                    });
+                    //When a file is selected, grab the URL and set it as the text field's value
+                    custom_uploader.on('select', function () {
+                        attachment = custom_uploader.state().get('selection').first().toJSON();
+                        BTthis.prev('input').val(attachment.url);
+                    });
+                    //Open the uploader dialog
+                    custom_uploader.open();
+                });
+            });
+        </script>
+    <?php
     }
 
 	/**
@@ -277,7 +353,8 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 		 */
 		if(sizeof(WC()->cart->get_cart()) == 0)
 		{
-            wc_add_notice(sprintf(__( 'Sorry, your session has expired. <a href=%s>Return to homepage &rarr;</a>', 'paypal-for-woocommerce' ), '"'.home_url().'"'),"error");
+            $fc_session_expired = apply_filters( 'angelleye_fc_session_expired', sprintf(__( 'Sorry, your session has expired. <a href=%s>Return to homepage &rarr;</a>', 'paypal-for-woocommerce' ), '"'.home_url().'"'), $this );
+            wc_add_notice( $fc_session_expired, "error" );
 		}
 		
 		/*
@@ -326,10 +403,10 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 			 */
 			$PayPalRequestData = array(
 					'tender'=>'C', 				// Required.  The method of payment.  Values are: A = ACH, C = Credit Card, D = Pinless Debit, K = Telecheck, P = PayPal
-					'trxtype'=>'S', 				// Required.  Indicates the type of transaction to perform.  Values are:  A = Authorization, B = Balance Inquiry, C = Credit, D = Delayed Capture, F = Voice Authorization, I = Inquiry, L = Data Upload, N = Duplicate Transaction, S = Sale, V = Void
+					'trxtype'=> $this->payment_action == 'Authorization' ? 'A' : 'S', 				// Required.  Indicates the type of transaction to perform.  Values are:  A = Authorization, B = Balance Inquiry, C = Credit, D = Delayed Capture, F = Voice Authorization, I = Inquiry, L = Data Upload, N = Duplicate Transaction, S = Sale, V = Void
 					'acct'=>$card_number, 				// Required for credit card transaction.  Credit card or purchase card number.
 					'expdate'=>$card_exp, 				// Required for credit card transaction.  Expiration date of the credit card.  Format:  MMYY
-					'amt'=>$order->get_total(), 					// Required.  Amount of the transaction.  Must have 2 decimal places. 
+					'amt'=> number_format($order->get_total(),2,'.',''), 					// Required.  Amount of the transaction.  Must have 2 decimal places. 
 					'currency'=>get_woocommerce_currency(), // 
 					'dutyamt'=>'', 				//
 					'freightamt'=>'', 			//
@@ -378,123 +455,138 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
                 $PayPalRequestData['SHIPTOCOUNTRY']     = $order->shipping_country;
                 $PayPalRequestData['SHIPTOZIP']         = $order->shipping_postcode;
             }
-					
-			/* Send Item details */
-            $item_loop = 0;
-            if(sizeof($order->get_items()) > 0)
-			{
+
+            if( $this->send_items ) {
+                /* Send Item details */
+                $item_loop = 0;
                 $ITEMAMT = 0;
-                foreach($order->get_items() as $item)
-				{
-                    $item['name'] = html_entity_decode($item['name'], ENT_NOQUOTES, 'UTF-8');
-                    $_product = $order->get_product_from_item($item);
-                    if($item['qty'])
-					{
-                        $sku = $_product->get_sku();
-                        if ($_product->product_type=='variation')
-						{
-                            if (empty($sku))
-							{
-                                $sku = $_product->parent->get_sku();
+                if (sizeof($order->get_items()) > 0) {
+                    foreach ($order->get_items() as $item) {
+                        $item['name'] = html_entity_decode($item['name'], ENT_NOQUOTES, 'UTF-8');
+                        $_product = $order->get_product_from_item($item);
+                        if ($item['qty']) {
+                            $sku = $_product->get_sku();
+                            if ($_product->product_type == 'variation') {
+                                if (empty($sku)) {
+                                    $sku = $_product->parent->get_sku();
+                                }
+                                $item_meta = new WC_Order_Item_Meta($item['item_meta']);
+                                $meta = $item_meta->display(true, true);
+                                if (!empty($meta)) {
+                                    $item['name'] .= " - " . str_replace(", \n", " - ", $meta);
+                                }
                             }
-                            $item_meta = new WC_Order_Item_Meta( $item['item_meta'] );
-                            $meta = $item_meta->display(true, true);
-                            if (!empty($meta))
-							{
-                                $item['name'] .= " - ".str_replace(", \n", " - ",$meta);
+
+                            
+                            $PayPalRequestData['L_NUMBER' . $item_loop] = $sku;
+                            $PayPalRequestData['L_NAME' . $item_loop] = $item['name'];
+                            $PayPalRequestData['L_COST' . $item_loop] = round( $item['line_subtotal'] / $item['qty'], 2 );
+                            $PayPalRequestData['L_QTY' . $item_loop] = $item['qty'];
+                            if ($sku) {
+                                $PayPalRequestData['L_SKU' . $item_loop] = $sku;
                             }
+                            $ITEMAMT += round( $item['line_subtotal'] / $item['qty'], 2 ) * $item['qty'];
+                            $item_loop++;
                         }
-                        if ( get_option( 'woocommerce_prices_include_tax' ) == 'yes' )
-						{
-                            $product_price = $order->get_item_subtotal( $item, true, false );
-                        }
-						else
-						{
-                            $product_price = $order->get_item_subtotal( $item, false, true );
-                        }
+                    }
 
-                        $PayPalRequestData['L_NUMBER' . $item_loop ] = $sku;
-                        $PayPalRequestData['L_NAME' . $item_loop ] = $item['name'];
-                        $PayPalRequestData['L_COST' . $item_loop ] = $product_price;
-                        $PayPalRequestData['L_QTY' . $item_loop ]  = $item['qty'];
-                        if ($sku)
-						{
-                            $PayPalRequestData[ 'L_SKU' . $item_loop ] = $sku;
-						}
-						$ITEMAMT += $product_price * $item['qty'];
-                        $item_loop++;
+					if (!$this->is_wc_version_greater_2_3()) {
+	                    //Cart Discount
+	                    if ($order->get_cart_discount() > 0) {
+	                        foreach (WC()->cart->get_coupons('cart') as $code => $coupon) {
+	
+	                            $PayPalRequestData['L_NUMBER' . $item_loop] = $code;
+	                            $PayPalRequestData['L_NAME' . $item_loop] = 'Cart Discount';
+	                            $PayPalRequestData['L_AMT' . $item_loop] = '-' . WC()->cart->coupon_discount_amounts[$code];
+	                            $PayPalRequestData['L_QTY' . $item_loop] = 1;
+	                            $item_loop++;
+	                        }
+	                        $ITEMAMT = $ITEMAMT - $order->get_cart_discount();
+	                    }
+	
+	                    //Order Discount
+	                    if ($order->get_order_discount() > 0) {
+	                        foreach (WC()->cart->get_coupons('order') as $code => $coupon) {
+	                            $PayPalRequestData['L_NUMBER' . $item_loop] = $code;
+	                            $PayPalRequestData['L_NAME' . $item_loop] = 'Order Discount';
+	                            $PayPalRequestData['L_AMT' . $item_loop] = '-' . WC()->cart->coupon_discount_amounts[$code];
+	                            $PayPalRequestData['L_QTY' . $item_loop] = 1;
+	                            $item_loop++;
+	                        }
+	                        $ITEMAMT = $ITEMAMT - $order->get_order_discount();
+	                    }
+					} else {
+						if ($order->get_total_discount() > 0) {
+
+							 	$PayPalRequestData['L_NUMBER' . $item_loop] = $code;
+	                            $PayPalRequestData['L_NAME' . $item_loop] = 'Order Discount';
+	                            $PayPalRequestData['L_COST' . $item_loop] = '-' . $order->get_total_discount();
+	                            $PayPalRequestData['L_QTY' . $item_loop] = 1;
+	                            $item_loop++;
+	                        	$ITEMAMT -= $order->get_total_discount();
+                    	}
+					}
+
+                    if (get_option('woocommerce_prices_include_tax') == 'yes') {
+                        $shipping = $order->get_total_shipping() + $order->get_shipping_tax();
+                        $tax = 0;
+                    } else {
+                        $shipping = $order->get_total_shipping();
+                        $tax = $order->get_total_tax();
+                    }
+                    if('yes' === get_option( 'woocommerce_calc_taxes' ) && 'yes' === get_option( 'woocommerce_prices_include_tax' )) {
+            			$tax = $order->get_total_tax();
+            		}
+
+                    //tax
+                    if ($tax > 0) {
+                        $PayPalRequestData['taxamt'] = number_format($tax,2,'.','');
+                    }
+
+                    // Shipping
+                    if ($shipping > 0) {
+                        $PayPalRequestData['freightamt'] = number_format($shipping, 2, '.', '');	
                     }
                 }
 
+                /**
+                 * Add custom Woo cart fees as line items
+                 */
+                foreach (WC()->cart->get_fees() as $fee) {
+                    $PayPalRequestData['L_NUMBER' . $item_loop] = $fee->id;
+                    $PayPalRequestData['L_NAME' . $item_loop] = $fee->name;
+                    $PayPalRequestData['L_AMT' . $item_loop] = number_format($fee->amount, 2, '.', '');
+                    $PayPalRequestData['L_QTY' . $item_loop] = 1;
+                    $item_loop++;
 
-                //Cart Discount
-                if ( $order->get_cart_discount()>0 )
-				{
-                    foreach ( WC()->cart->get_coupons( 'cart' ) as $code => $coupon )
-					{
-
-                        $PayPalRequestData['L_NUMBER' . $item_loop ]	= $code;
-                        $PayPalRequestData['L_NAME' . $item_loop ]		= 'Cart Discount';
-                        $PayPalRequestData['L_AMT' . $item_loop ]		= '-' . WC()->cart->coupon_discount_amounts[ $code ];
-                        $PayPalRequestData['L_QTY' . $item_loop ]		= 1;
-                        $item_loop++;
-                    }
-                    $ITEMAMT = $ITEMAMT - $order->get_cart_discount();
+                    $ITEMAMT += $fee->amount;
                 }
-
-                //Order Discount
-                if ( $order->get_order_discount()>0 )
-				{
-                    foreach ( WC()->cart->get_coupons( 'order' ) as $code => $coupon )
-					{
-                        $PayPalRequestData['L_NUMBER' . $item_loop ]	= $code;
-                        $PayPalRequestData['L_NAME' . $item_loop ]		= 'Order Discount';
-                        $PayPalRequestData['L_AMT' . $item_loop ]		= '-' . WC()->cart->coupon_discount_amounts[ $code ];
-                        $PayPalRequestData['L_QTY' . $item_loop ]		= 1;
-                        $item_loop++;
-                    }
-                    $ITEMAMT = $ITEMAMT - $order->get_order_discount();
+            }else{
+                if (get_option('woocommerce_prices_include_tax') == 'yes') {
+                    $shipping = $order->get_total_shipping() + $order->get_shipping_tax();
+                    $tax = 0;
+                } else {
+                    $shipping = $order->get_total_shipping();
+                    $tax = $order->get_total_tax();
                 }
-
-                if( get_option( 'woocommerce_prices_include_tax' ) == 'yes' )
-				{
-                    $shipping 		= $order->get_total_shipping() + $order->get_shipping_tax();
-                    $tax			= 0;
-                }
-				else
-				{
-                    $shipping 		= $order->get_total_shipping();
-                    $tax 			= $order->get_total_tax();
-                }
+                 if('yes' === get_option( 'woocommerce_calc_taxes' ) && 'yes' === get_option( 'woocommerce_prices_include_tax' )) {
+            		$tax = $order->get_total_tax();
+            	}
 
                 //tax
-                if($tax>0)
-				{
-                    $PayPalRequestData['TAXAMT'] = $tax;
+                if ($tax > 0) {
+                    $PayPalRequestData['taxamt'] = number_format($tax,2,'.','');
                 }
 
                 // Shipping
-                if($shipping > 0)
-				{
-                    $PayPalRequestData['FREIGHTAMT'] = $shipping;
+                if ($shipping > 0) {
+                    $PayPalRequestData['freightamt'] = $shipping;
                 }
+                
             }
 			
-			/**
-			 * Add custom Woo cart fees as line items
-			 */
-			foreach ( WC()->cart->get_fees() as $fee )
-			{
-				$PayPalRequestData['L_NUMBER' . $item_loop ]	= $fee->id;
-				$PayPalRequestData['L_NAME' . $item_loop ]		= $fee->name;
-				$PayPalRequestData['L_AMT' . $item_loop ]		= number_format($fee->amount,2,'.','');
-				$PayPalRequestData['L_QTY' . $item_loop ]		= 1;
-				$item_loop++;
-				
-				$ITEMAMT += $fee->amount*$Item['qty'];
-			}
-			
 			$PayPalRequestData['ITEMAMT'] = number_format($ITEMAMT,2,'.','');
+			
 			
 			/**
 			 * Woo's original extension wasn't sending the request with 
@@ -510,6 +602,21 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 			/**
 			 * Pass data to to the class and store the $PayPalResult
 			 */
+			
+			// Rounding amendment
+			
+	        // Rounding amendment
+	       if (trim(number_format(WC()->cart->total, 2, '.', '')) !== trim(number_format($ITEMAMT,2,'.','') + number_format($tax, 2, '.', '') + number_format($shipping, 2, '.', ''))) {
+				$diffrence_amount = $this->get_diffrent(WC()->cart->total, $ITEMAMT + $tax + number_format($shipping, 2, '.', ''));
+	            if($shipping > 0) {
+					$PayPalRequestData['freightamt'] = round($shipping + $diffrence_amount, 2);
+	            } elseif ($tax > 0) {
+					$PayPalRequestData['taxamt'] = round($tax + $diffrence_amount, 2);
+	            } else {
+	            	$PayPalRequestData['ITEMAMT'] = round($PayPalRequestData['ITEMAMT'] + $diffrence_amount, 2);
+	            }
+	        }
+        
 			$PayPalResult = $PayPal->ProcessTransaction($PayPalRequestData);
 			
 			/**
@@ -520,13 +627,14 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 				$this->add_log('PayFlow Endpoint: '.$PayPal->APIEndPoint);
             	$this->add_log(print_r($PayPalResult,true));
 			}
-			
+
 			/**
 			 * Error check
 			 */
 			if(empty($PayPalResult['RAWRESPONSE']))
 			{
-                throw new Exception(__('Empty PayPal response.', 'paypal-for-woocommerce'));
+                $fc_empty_response = apply_filters( 'angelleye_fc_empty_response', __('Empty PayPal response.', 'paypal-for-woocommerce'), $PayPalResult );
+                throw new Exception( $fc_empty_response );
 			}
 			
 			/** 
@@ -596,23 +704,29 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 				// Generate error message based on Error Display Type setting
 				if($this->error_display_type == 'detailed')
 				{
-                	wc_add_notice( __( 'Payment error:', 'paypal-for-woocommerce' ) . ' ' . $PayPalResult['RESULT'].'-'.$PayPalResult['RESPMSG'], "error" );
+                    $fc_error_display_type = __( 'Payment error:', 'paypal-for-woocommerce' ) . ' ' . $PayPalResult['RESULT'].'-'.$PayPalResult['RESPMSG'];
 				}
 				else
 				{
-                	wc_add_notice( __( 'Payment error:', 'paypal-for-woocommerce' ) . ' There was a problem processing your payment.  Please try another method.', "error" );
+                    $fc_error_display_type = __( 'Payment error:', 'paypal-for-woocommerce' ) . ' There was a problem processing your payment.  Please try another method.';
 				}
+                $fc_error_display_type = apply_filters( 'angelleye_fc_dp_error_display_type', $fc_error_display_type, $PayPalResult['RESULT'], $PayPalResult['RESPMSG'], $PayPalResult );
+                wc_add_notice( $fc_error_display_type, "error" );
 				
 				// Notice admin if has any issue from PayPal
 				if($this->error_email_notify)
 				{
 					$admin_email = get_option("admin_email");
-					$message .= __( "PayFlow API call failed." , "paypal-for-woocommerce" )."\n\n";
+					$message = __( "PayFlow API call failed." , "paypal-for-woocommerce" )."\n\n";
 					$message .= __( 'Error Code: ' ,'paypal-for-woocommerce' ) . $PayPalResult['RESULT'] ."\n";
 					$message .= __( 'Detailed Error Message: ' , 'paypal-for-woocommerce') . $PayPalResult['RESPMSG'];
 					$message .= isset($PayPalResult['PREFPSMSG']) && $PayPalResult['PREFPSMSG'] != '' ? ' - ' . $PayPalResult['PREFPSMSG'] ."\n" : "\n";
-	
-					wp_mail($admin_email, "PayPal Pro Error Notification",$message);
+                    $message .= __( 'Order ID: ' ).$order->id ."\n";
+                    $message .= __( 'Customer Name: ' ).$order->billing_first_name.' '.$order->billing_last_name."\n";
+                    $message .= __( 'Customer Email: ' ).$order->billing_email."\n";
+	                $message = apply_filters( 'angelleye_fc_error_email_notify_msg', $message );
+	                $subject = apply_filters( 'angelleye_fc_error_email_notify_subject', "PayPal Pro Error Notification" );
+					wp_mail( $admin_email, $subject, $message );
 				}
 				
                 return;
@@ -621,7 +735,8 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 		}
 		catch(Exception $e)
 		{
-            wc_add_notice( __('Connection error:', 'paypal-for-woocommerce' ) . ': "' . $e->getMessage() . '"', "error");
+            $fc_connect_error = apply_filters( 'angelleye_fc_connect_error', __('Connection error:', 'paypal-for-woocommerce' ) . ': "' . $e->getMessage() . '"', $e  );
+            wc_add_notice( $fc_connect_error, "error");
             return;
         }	
 	}
@@ -630,7 +745,7 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
      * Payment form on checkout page
      */
 	function payment_fields() {
-
+        do_action( 'angelleye_before_fc_payment_fields', $this );
 		if ( $this->description ) {
 			echo '<p>';
 			if ( $this->testmode == 'yes' )
@@ -641,7 +756,7 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 		?>
         <style type="text/css">
             #paypal_pro_payflow_card_type_image {
-                background: url(<?php echo $this->settings['card_icon']; ?>) no-repeat 32px 0;
+                background: url(<?php echo $this->icon; ?>) no-repeat 32px 0;
             }
         </style>
 		<fieldset class="paypal_pro_credit_card_form">
@@ -706,6 +821,7 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
 				}
 			}).change();
 		" );
+        do_action( 'angelleye_after_fc_payment_fields', $this );
 	}
 
 
@@ -738,6 +854,9 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
      * @return  bool|wp_error True or false based on success, or a WP_Error object
      */
     public function process_refund( $order_id, $amount = null, $reason = '' ) {
+
+        do_action( 'angelleye_before_fc_refund', $order_id, $amount, $reason );
+
         $order = wc_get_order( $order_id );
         $this->add_log( 'Begin Refund' );
         $this->add_log( 'Order: '. print_r($order, true) );
@@ -775,12 +894,33 @@ for the Payflow SDK. If you purchased your account directly from PayPal, use Pay
         $this->add_log('Refund Request: '.print_r( $PayPalRequestData, true ) );
         $PayPalResult = $PayPal->ProcessTransaction($PayPalRequestData);
         $this->add_log('Refund Information: '.print_r( $PayPalResult, true ) );
+        add_action( 'angelleye_after_refund', $PayPalResult, $order, $amount, $reason );
         if(isset($PayPalResult['RESULT']) && ($PayPalResult['RESULT'] == 0 || $PayPalResult['RESULT'] == 126)){
+            $order->add_order_note( 'Refund Transaction ID:'. $PayPalResult['PNREF'] );
             $order->update_status( 'refunded' );
+            if (ob_get_length()) ob_end_clean();
             return true;
         }else{
-            return new WP_Error( 'paypal-error', $PayPalResult['RESPMSG'] );
+            $fc_refund_error = apply_filters( 'angelleye_fc_refund_error', $PayPalResult['RESPMSG'], $PayPalResult );
+            return new WP_Error( 'paypal-error', $fc_refund_error );
         }
         return false;
+    }
+    
+    function get_diffrent($amout_1, $amount_2) {
+   		$diff_amount = $amout_1 - $amount_2;
+    	return $diff_amount;
+    }
+    function cut_off($number) {
+        $parts = explode(".", $number);
+        $newnumber = $parts[0] . "." . $parts[1][0] . $parts[1][1];
+        return $newnumber;
+    }
+    public function is_wc_version_greater_2_3() {
+        return $this->get_wc_version() && version_compare($this->get_wc_version(), '2.3', '>=');
+    }
+
+    public function get_wc_version() {
+        return defined('WC_VERSION') && WC_VERSION ? WC_VERSION : null;
     }
 }
