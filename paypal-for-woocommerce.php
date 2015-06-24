@@ -4,7 +4,7 @@
  * Plugin Name:       PayPal for WooCommerce
  * Plugin URI:        http://www.angelleye.com/product/paypal-for-woocommerce-plugin/
  * Description:       Easily enable PayPal Express Checkout, Website Payments Pro 3.0, and Payments Pro 2.0 (PayFlow).  Each option is available separately so you can enable them individually.
- * Version:           1.1.6.3
+ * Version:           1.1.6.3.1
  * Author:            Angell EYE
  * Author URI:        http://www.angelleye.com/
  * License:           GNU General Public License v3.0
@@ -289,7 +289,59 @@ if(!class_exists('AngellEYE_Gateway_Paypal')){
             else
             {
                 global $woocommerce;
-                //include_once $woocommerce->plugin_path() . '/admin/woocommerce-admin-install.php';
+                
+                // PayFlow
+                $woocommerce_paypal_pro_payflow_settings = get_option('woocommerce_paypal_pro_payflow_settings');
+                if( isset($woocommerce_paypal_pro_payflow_settings) && !empty($woocommerce_paypal_pro_payflow_settings)) {
+                	
+                	if( !isset($woocommerce_paypal_pro_payflow_settings['payment_action']) && empty($woocommerce_paypal_pro_payflow_settings['payment_action'])) {
+                		$woocommerce_paypal_pro_payflow_settings['payment_action'] = 'Sale';
+                	}
+                	
+                	if( !isset($woocommerce_paypal_pro_payflow_settings['send_items']) && empty($woocommerce_paypal_pro_payflow_settings['send_items']) ) {
+                		$woocommerce_paypal_pro_payflow_settings['send_items'] = 'yes';
+                	}
+                	
+                	update_option('woocommerce_paypal_pro_payflow_settings', $woocommerce_paypal_pro_payflow_settings);
+                }
+                
+                // DoDirectPayment
+                $woocommerce_paypal_pro_settings = get_option('woocommerce_paypal_pro_settings');
+                if( isset($woocommerce_paypal_pro_settings) && !empty($woocommerce_paypal_pro_settings)) {
+                	
+                	if( !isset($woocommerce_paypal_pro_settings['payment_action']) && empty($woocommerce_paypal_pro_settings['payment_action']) ) {
+                		$woocommerce_paypal_pro_settings['payment_action'] = 'Sale';
+                	}
+                	
+                	if( !isset($woocommerce_paypal_pro_settings['send_items']) && empty($woocommerce_paypal_pro_settings['send_items']) ) {
+                		$woocommerce_paypal_pro_settings['send_items'] = 'yes';
+                	}
+                	
+                	update_option('woocommerce_paypal_pro_settings', $woocommerce_paypal_pro_settings);
+                }
+                
+                // PayPal Express Checkout
+                $woocommerce_paypal_express_settings = get_option('woocommerce_paypal_express_settings');
+                if( isset($woocommerce_paypal_express_settings) && !empty($woocommerce_paypal_express_settings)) {
+                	
+                	if( !isset($woocommerce_paypal_express_settings['payment_action']) && empty($woocommerce_paypal_express_settings['payment_action'])) {
+                		$woocommerce_paypal_express_settings['payment_action'] = 'Sale';
+                	}
+                	
+                	if( !isset($woocommerce_paypal_express_settings['cancel_page']) && empty($woocommerce_paypal_express_settings['cancel_page'])) {
+                		$woocommerce_paypal_express_settings['cancel_page'] = get_option('woocommerce_cart_page_id');
+                	}
+                	
+                	if( !isset($woocommerce_paypal_express_settings['send_items']) && empty($woocommerce_paypal_express_settings['send_items'])) {
+                		$woocommerce_paypal_express_settings['send_items'] = 'yes';
+                	}
+                	
+                	if( !isset($woocommerce_paypal_express_settings['billing_address']) && empty($woocommerce_paypal_express_settings['billing_address'])) {
+                		$woocommerce_paypal_express_settings['billing_address'] = 'no';
+                	}
+                	
+                	update_option('woocommerce_paypal_express_settings', $woocommerce_paypal_express_settings);
+                }
 
                 // Create review page for Express Checkout
                 wc_create_page(esc_sql(_x('review-order','page_slug','woocommerce')),'woocommerce_review_order_page_id',__('Checkout &rarr; Review Order','paypal-for-woocommerce'),'[woocommerce_review_order]',wc_get_page_id('checkout'));
