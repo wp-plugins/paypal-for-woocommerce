@@ -4,7 +4,7 @@
  * Plugin Name:       PayPal for WooCommerce
  * Plugin URI:        http://www.angelleye.com/product/paypal-for-woocommerce-plugin/
  * Description:       Easily enable PayPal Express Checkout, Website Payments Pro 3.0, and Payments Pro 2.0 (PayFlow).  Each option is available separately so you can enable them individually.
- * Version:           1.1.6.3.3
+ * Version:           1.1.6.3.4
  * Author:            Angell EYE
  * Author URI:        http://www.angelleye.com/
  * License:           GNU General Public License v3.0
@@ -47,7 +47,7 @@ if(!class_exists('AngellEYE_Gateway_Paypal')){
          *
          */
         
-        const VERSION_PFW = '1.1.6.3.3';
+        const VERSION_PFW = '1.1.6.3.4';
         
         public function __construct()
         {
@@ -63,7 +63,7 @@ if(!class_exists('AngellEYE_Gateway_Paypal')){
             }
 
             add_filter( 'woocommerce_paypal_args', array($this,'ae_paypal_standard_additional_parameters'));
-            add_action( 'wp_loaded', array($this, 'init'));
+            add_action( 'plugins_loaded', array($this, 'init'));
             register_activation_hook( __FILE__, array($this, 'activate_paypal_for_woocommerce' ));
             register_deactivation_hook( __FILE__,array($this,'deactivate_paypal_for_woocommerce' ));
             add_action( 'wp_enqueue_scripts', array($this, 'woocommerce_paypal_express_init_styles'), 12 );
